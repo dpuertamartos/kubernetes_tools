@@ -1,0 +1,91 @@
+https://medium.com/microsoftazure/creating-an-azure-devops-ci-cd-pipeline-for-your-kubernetes-microservice-application-450d90bf58df
+
+source <(kubectl completion bash)
+
+#install dependencies for course
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.4.1 bash
+
+#part1
+k3d cluster create -a 2
+k3d kubeconfig get k3s-default
+kubectl config use-context k3d-k3s-default
+kubectl cluster-info
+k3d cluster stop
+k3d cluster start
+kubectl create deployment hashgenerator-dep --image=jakousa/dwk-app1
+kubectl get pods
+kubectl get deployments
+kubectl logs -f "specific-pod"
+kubectl scale deployment/string-generator --replicas=6
+kubectl delete deployment hashgenerator-dep
+kubectl apply -f deployment.yaml
+kubectl delete -f deployment.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-hy/material-example/master/app1/manifests/deployment.yaml
+
+https://kubernetes.io/docs/reference/kubectl/docker-cli-to-kubectl/
+
+describe deployment hashgenerator-dep
+kubectl describe pod hashgenerator-dep-548d4d6c8d
+kubectl config view --minify --raw
+
+TOOLS: lens
+
+kubectl port-forward hashresponse-dep-57bcc888d7-dj5vk 3003:3000
+k3d cluster delete
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
+kubectl apply -f service.yaml
+kubectl delete -f service.yaml
+
+
+docker exec k3d-k3s-default-agent-0 mkdir -p /tmp/kube
+
+#part 2
+
+kubectl get pods -n kube-system
+kubectl create namespace example-namespace
+kubectl config set-context --current --namespace=<name>
+kubectl label po hashgenerator-dep-7b9b88f8bf-lvcv4 examplelabel=smart
+kubectl get po -l examplelabel=smart
+
+TOOLS: sops + age (encryption)
+curl -LO https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+mv sops-v3.8.1.linux.amd64 /usr/local/bin/sops
+chmod +x /usr/local/bin/sops
+curl -LO https://github.com/FiloSottile/age/releases/download/v1.1.1/age-v1.1.1-linux-amd64.tar.gz
+sudo mv age/age /usr/local/bin
+sudo mv age/age-keygen /usr/local/bin
+
+age-keygen -o key.txt
+sops --encrypt --age {Public key} --encrypted-regex '^(data)$' secret.yaml > secret.enc.yaml
+export SOPS_AGE_KEY_FILE=$(pwd)/key.txt
+sops --decrypt secret.enc.yaml > secret.yaml
+
+https://helm.sh/docs/intro/install/
+https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install my-kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace project --version 57.2.0
+kubectl -n project port-forward my-kube-prometheus-stack-grafana-6b77bd5699-pzv52 3000
+
+helm list
+helm delete <name>
+
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm upgrade --install loki --namespace=loki-stack grafana/loki-stack
+
+#part 3
+
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+sudo apt-get update && sudo apt-get install google-cloud-cli
+sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
+gcloud init
+gcloud services enable container.googleapis.com
+gcloud container clusters create dwk-cluster --zone=europe-west1-b --cluster-version=1.29
+gcloud container clusters get-credentials dwk-cluster --region=europe-west1-b
+gcloud container clusters delete dwk-cluster --zone=europe-west1-b
+kubectl run curl --image=radial/busyboxplus:curl -i --tty
+curl flask-app-counter-svc.string-ns:2346
